@@ -1,0 +1,242 @@
+---
+title: "Predictive Modeling"
+author: "Saurabh"
+date: "11/02/2017"
+output: html_document
+---
+##Important Note:
+We believe you won't learn data science unless you start doing it by yourself. To ensure that you don't get into the habit of copy, pasting codes early in your career, we've used the screenshots of  the code file. This way you won't be able to copy any code. You will be writing every bit of code. This activity will improve your muscle memory and will help you to retain knowledge for long.
+ 
+##Loading Data
+First, we must load both train and test data files
+
+```{r path}
+setwd("/Users/nsaurabh777/Desktop/Analytics/AnalyticsVidhya_Experiments With Data")
+getwd()
+```
+## Predictive Modeling
+
+For more details on using Predictive Modeling see <https://datahack.analyticsvidhya.com/workshop/experiments-with-data-6/slide?next=EU0WM1Q7CPE8>.
+```{r library}
+library(pastecs)
+library(gmodels)
+library(ggplot2)
+library(mlr)
+library(car)
+library(rpart)
+library(rpart.plot)
+library(caret)
+```
+###test
+```{r test}
+test <- read.csv("test.csv")
+```
+
+## Univariate Analysis
+This stage involves exploring all variables one by one. The method to perform univariate analysis depends on whether the variable type is categorical or continuous. So lets consider those individually.
+
+###1. Continuous Variables:
+In case of continuous variables, we generally focus on calculating measure of central tendency and spread of data such as Mean, Median, Range, IQR and Standard Deviation. In R, you can use summary(data_set_name) function to get the summary of all variables available in a data set at once.
+For a detailed summary, you can use package "pastecs" as shown below.
+
+###2. Categorical Variables:
+In case of categorical variables, we generally use frequency table to understand distribution of each category. It can be measured using two metrics, Count and Count% against each category.
+Before checking the count of categories, lets check the number of unique values in each categorical variable.
+
+###2.1 Analyzing Race
+Here we observe that the category White accounts for ~85% of observations and White and Black combined have ~95% of observations. You should keep these observations in mind.
+
+###2.2 Analyzing Native-Country
+The situation is even more extreme here. United-States itself accounts for ~90% of the observations and only Mexico has more than 1% observations apart from US. This infers that united states will largely influence the output values. Keep in mind.
+The idea is to tell you what to look and where to pay attention in the data. We'll make use of these observations later.
+
+```{r train_uni}
+train <- read.csv("train.csv")
+str(train)
+train_cont <- subset(train, select = c(ID,Age,Hours.Per.Week))
+train_cat <- subset(train, select = -c(ID,Age,Hours.Per.Week))
+summary(train_cont)
+options(scipen = 100)
+options(digits = 2)
+stat.desc(train_cont)
+apply(train_cat,2,function(x){length(unique(x))})
+table(train_cat$Race)
+as.matrix(prop.table(table(train_cat$Race)))
+head(sort(table(train_cat$Native.Country),decreasing = TRUE),20)
+head(round(sort(prop.table(table(train_cat$Native.Country)),decreasing = TRUE),6),20)
+```
+
+####NOTE
+Here we can see that, out of 12 variables, there are 3 continuous (int) variables and 9 categorical (Factor) variables, where the last one (Income.Group) is the outcome (also known as dependent variable) itself. Let's perform univariate analysis on each type.
+
+####NOTE
+The metrics shown here are:
+min: minimum value of all valid entries
+Ist Qu.: first quartile (25th percentile) of all valid entries
+Median: median or second quartile (50th percentile) of all valid entries
+3rd Qu.: Third quartile (75th percentile) of all valid entries
+mean: numerical average of all valid entries
+
+####NOTE
+The summary output here is much more comprehensive than summary function. Even though, the output is self explanatory, some of these names might confuse you such as:
+nbr.val - shows number of values in a variable
+nbr.null - shows number of null(missing) values
+nbr.na - shows number of NA(missing) values
+CI.mean.0.95 - considers 95% confidence interval
+
+####NOTE
+Here we can see that 6 variables have less than 10 unique values but others have 15 or more unique values which seem to be too high.
+R has an inbuilt function called table which gives the count of each category. I'll take 2 examples here to perform univariate analysis.
+
+##Multivariate Analysis
+Multivariate Analysis finds out the relationship between two or more variables. Here, we look for association and disassociation between variables at a pre-defined significance level.
+The type of visualization technique to use depends on the type variable. Thus, there can be 3 combinations of the 2 types of variables:
+categorical - categorical
+continuous - continuous
+categorical - continuous
+Lets discuss these cases individually.
+
+###1. Both Categorical:
+In this case, we look at the cross-tabulation or confusion matrix of the two variables. This can be done using crosstab function from package gmodels.
+Lets take an example of sex and income group.
+This table reveals all the important aspects between these two variables. Here are the key findings:
+Out of total Females, 89.1% females have income <= 50K and only ~ 11% females have income >50K
+Out of total people which have income >50K, only 15% are females and 85% are males
+Activity: Try to analyze the stats for males now. What do you get ?
+
+###2. Both continuous
+In this case, we plot a scatter chart and strive to make interpretations. Lets do it using ggplot.
+Interpretation: This shows no real relationship between Age and Hours-Per-Week. Even intuitively we were not expecting any specific trend so this is good. In other cases, you might figure out interesting trends which can be exploited.
+
+###￼3. Categorical-Continuous Combination
+In this case, we generally make box-plots for each category. They not only helps us to understand the relationship between variables but also identifies outliers easily. Let's make one boxplot between gender and hours of work.
+
+```{r train_multi}
+CrossTable(train$Sex,train$Income.Group)
+ggplot(train,aes(Sex,fill=Income.Group)) + geom_bar() + labs(title="Stacked Bar Chart", x= "Sex", y="Count") + theme_bw()
+ggplot(train, aes(Sex, Hours.Per.Week)) + geom_boxplot() + labs(title = "Boxplot")
+```
+
+####NOTE
+Interpretation: In the graph above, we can verify the analysis by getting a similar output to crosstab. We see that majority of females have income <= 50K
+
+####NOTE
+Interpretation: Here the black horizontal line represent median. So we can make the following inferences:
+The median of male and female working hours are same
+For Males, the first quarter and median values are same
+For females, the median and third quarter are same.
+Males have higher working hours in general because the 75% percentile of female corressponds to 25% percentile of males.
+
+##Missing Value Treatment
+Missing value treatment helps your data to regain the lost information upto some extent. Lets start by checking the number of missing values in each variable. This can be done by using the apply function like we did before.
+
+###1. Checking missing values
+In both test and train data set, we found missing values in 3 variables:
+Workclass (categorical)
+Occupation (categorical)
+Native-Country (categorical)
+Since all of these are categorical, we can simply impute them with the mode values.
+
+###2. Imputation
+For missing value imputation, mlr packages is one of multi-tasking and powerful package. Every R user must learn about it. Here also, we'll use the mlr package's function mode to do the job.
+
+```{r missing}
+table(is.na(train))
+colSums(is.na(train))
+colSums(is.na(test))
+imputed_data <- impute(train,classes = list(factor = imputeMode()))
+train <- imputed_data$data
+colSums(is.na(train))
+imputed_test_data <- impute(test,classes = list(factor = imputeMode()))
+test<-imputed_test_data$data
+colSums(is.na(test))
+```
+
+##Outlier Treatment
+We can check outliers in continuous variables by creating simple scatter plots. Lets do it for both the numerical variables
+
+```{r outlier}
+ggplot(train, aes(ID, Age)) + geom_jitter()
+ggplot(train, aes(ID, Hours.Per.Week)) + geom_jitter()
+```
+
+In both of the above cases, you would notice that there are no real outliers. One thing to note here is that outliers need not just be a value outside the general cluster of data as shown in the video lecture. You should also look for values which are not practically possible. For instance, if any of the age or hours per week was negative, then we should certainly treat it like a missing value.
+
+##Variable Transformation
+Variable Transformation is not only about creating new variables, but also making the available information more sensible. This stage involves making new variables using existing variables or perform some numerical transformations on variables like taking a log. During univariate analysis, we saw a number of categories with a very small percentage of observations. Let's recall the class of available variables.
+
+###Workclass Example
+Lets take workclass variable as an example.
+Depending on the business scenario, we can combine the categories with very few observations. As a thumbrule, lets combine categories with less than 5% of the values.
+
+```{r transform}
+sapply(train,class)
+as.matrix(prop.table(table(train$Workclass)))
+train$Workclass <- recode(train$Workclass, "c('State-gov', 'Self-emp-inc', 'Federal-gov', 'Without-pay', 'Never-worked') = 'Others'")
+test$Workclass <- recode(test$Workclass, "c('State-gov', 'Self-emp-inc', 'Federal-gov', 'Without-pay', 'Never-worked') = 'Others'")
+as.matrix(prop.table(table(train$Workclass)))
+```
+
+####NOTE
+Here we can see that the categories have been successfully combined. Note that combining is not the best possible techniqe for solving the problem of high cardinality, i.e. high number of unique values.
+Similarly, you can perform this method with other categorical variables and combine the levels which have insufficient (may be less than 5%) observations.
+
+##Predictive Modeling
+Since this is a classification problem, we can start with classification algorithms like logistic regression, naive bayes, decision trees, etc. In this tutorial, we will use a decision tree algorithm for model building.
+Decision Tree is a powerful algorithm. It is capable of mapping non-linear relationships in the data sets even better than the generalized linear models. Let's go ahead.
+But, before modeling, we'll perform data pre-processing one last time
+
+###STEP 1: Data Preprocessing
+In this step, we'll encode the dependent variable into two levels 0 and 1. This will help the algorithm to clearly classify the levels. This encoding would lead to:
+"<=50K" - This wil be converted to 0
+">50K" - This will be convered to 1
+Let's do it!
+
+```{r preprocess}
+table(train$Income.Group)
+train$Income.Group<- ifelse(train$Income.Group == "<=50K", 0, 1)
+table(train$Income.Group)
+train <- subset(train , select = -c(ID))
+```
+
+###STEP 2: Model Building
+For building decision tree, we'll use rpart() package which is simple to use and understand.
+
+```{r model}
+set.seed(333)
+train.tree<-rpart(Income.Group ~ ., data=train, method = "class", control = rpart.control(minsplit = 20, minbucket = 100, maxdepth = 10, xval = 5))
+summary(train.tree)
+rpart.plot(train.tree)
+```
+
+####NOTE
+Interpretations:
+1. Relationship is the most important variable.
+2. The first node: If the relationship status is 'Not in family','Own child', 'Unmarried', 'Other relatives', the tree predicts their salary <= 50K, else if the relationship status is different, the tree moves to node 2.
+3. We get 6 terminal nodes (leaf).
+4. Similary, you can understand the splitting at other nodes.
+
+###Step3: Make predictions
+Now we will use the predict function to make predictions
+```{r predict}
+preiction_train <- predict(train.tree, newdata = train, type = "class")
+preiction_test <- predict(train.tree, newdata = test, type = "class")
+```
+
+###Step4: Analyze results
+Various metrics can be used to evaluate a model depending on the problem at hand. Let's use prediction accuracy here. Since this is a classification problem, we'll use confusion matrix. It can be found in caret package. Confusion matrix is a NXN matrix where N is the number of class predicted. It maps the number of labels which get classified correctly and incorrectly. This matrix is easy to interpret and is being used popularly.
+
+```{r analyze}
+confusionMatrix(preiction_train, train$Income.Group)
+```
+
+We have achieved a train accuracy of 82%. To check the test accuracy, please upload the solution file at the solution checker link below. You can create solution file with using code below. This final_solution.csv file will be available in your current working directory.
+
+To know how the solution checker works, check out this 2 minute video: <https://www.youtube.com/embed/Vhw4kZocCJ4>
+
+##Write File
+```{r store}
+solution_frame <-data.frame(ID = test$ID, Income.Group = preiction_test)
+head(solution_frame)
+write.csv(solution_frame, file = "final_solution.csv")
+```
